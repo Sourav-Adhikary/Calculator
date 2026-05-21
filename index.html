@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calc">
+<meta name="description" content="Modern PWA Calculator">
+<title>Calculator</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --surface3: #22222f;
+    --border: rgba(255,255,255,0.06);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0f0f8;
+    --text-muted: rgba(240,240,248,0.45);
+    --text-dim: rgba(240,240,248,0.25);
+    --accent: #7f77dd;
+    --accent-dim: rgba(127,119,221,0.15);
+    --accent-glow: rgba(127,119,221,0.3);
+    --eq-accent: #1d9e75;
+    --eq-dim: rgba(29,158,117,0.18);
+    --op-bg: rgba(127,119,221,0.1);
+    --radius: 18px;
+    --radius-sm: 12px;
+    --btn-size: clamp(68px, 18vw, 82px);
+  }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .app {
+    width: min(400px, 100vw);
+    height: min(780px, 100dvh);
+    background: var(--surface);
+    border-radius: clamp(0px, 3vw, 32px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 0.5px solid var(--border2);
+    position: relative;
+  }
+
+  /* Ambient glow behind the display */
+  .app::before {
+    content: '';
+    position: absolute;
+    top: -80px; left: 50%; transform: translateX(-50%);
+    width: 280px; height: 280px;
+    background: radial-gradient(ellipse, var(--accent-glow) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    transition: background 0.4s;
+  }
+  .app.eq-mode::before {
+    background: radial-gradient(ellipse, rgba(29,158,117,0.25) 0%, transparent 70%);
+  }
+
+  /* Display area */
+  .display {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 24px 28px 20px;
+    border-bottom: 0.5px solid var(--border);
+    min-height: 200px;
+    max-height: 220px;
+  }
+
+  .history-line {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    text-align: right;
+    min-height: 18px;
+    letter-spacing: 0.02em;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .expression {
+    font-family: 'DM Mono', monospace;
+    font-size: 15px;
+    color: var(--text-muted);
+    text-align: right;
+    min-height: 22px;
+    letter-spacing: 0.03em;
+    margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result {
+    font-family: 'DM Mono', monospace;
+    font-weight: 300;
+    font-size: clamp(42px, 11vw, 56px);
+    color: var(--text);
+    text-align: right;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    transition: font-size 0.15s ease, color 0.3s;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result.flash {
+    color: var(--accent);
+  }
+  .app.eq-mode .result { color: var(--eq-accent); }
+
+  /* Keypad */
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 16px 16px 20px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    height: var(--btn-size);
+    border-radius: var(--radius-sm);
+    border: 0.5px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.08s ease, background 0.12s, border-color 0.12s, box-shadow 0.12s;
+    position: relative;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+    letter-spacing: -0.01em;
+  }
+
+  .btn:active {
+    transform: scale(0.92);
+    background: var(--surface3);
+  }
+
+  .btn.num {
+    background: var(--surface2);
+  }
+  .btn.num:active { background: var(--surface3); }
+
+  .btn.op {
+    background: var(--op-bg);
+    color: var(--accent);
+    border-color: rgba(127,119,221,0.2);
+    font-size: 22px;
+  }
+  .btn.op:active {
+    background: rgba(127,119,221,0.2);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+  .btn.op.active {
+    background: rgba(127,119,221,0.25);
+    border-color: rgba(127,119,221,0.4);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  .btn.fn {
+    background: var(--surface3);
+    color: var(--text-muted);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .btn.fn:active { background: rgba(255,255,255,0.08); }
+
+  .btn.eq {
+    background: var(--eq-accent);
+    color: #fff;
+    border-color: transparent;
+    font-size: 26px;
+    box-shadow: 0 4px 24px rgba(29,158,117,0.25);
+  }
+  .btn.eq:active {
+    background: #0f6e56;
+    transform: scale(0.92);
+    box-shadow: none;
+  }
+
+  .btn.zero {
+    grid-column: span 2;
+    justify-content: flex-start;
+    padding-left: 28px;
+    font-size: 22px;
+  }
+
+  /* Ripple effect */
+  .btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .btn:active::after { opacity: 0.04; transition: none; }
+
+  /* Divider lines inside display for aesthetics */
+  .display-deco {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .deco-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border2);
+  }
+  .deco-line {
+    flex: 1;
+    height: 0.5px;
+    background: var(--border);
+  }
+
+  /* Error shake */
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%,60% { transform: translateX(-6px); }
+    40%,80% { transform: translateX(6px); }
+  }
+  .shake { animation: shake 0.35s ease; }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    padding: 0 0 8px;
+    font-size: 10px;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="display" id="display">
+    <div class="display-deco">
+      <div class="deco-dot"></div>
+      <div class="deco-dot"></div>
+      <div class="deco-line"></div>
+      <div class="deco-dot"></div>
+    </div>
+    <div class="history-line" id="history"></div>
+    <div class="expression" id="expression"></div>
+    <div class="result" id="result">0</div>
+  </div>
+
+  <div class="keypad">
+    <!-- Row 1 -->
+    <button class="btn fn" data-action="clear">AC</button>
+    <button class="btn fn" data-action="sign">+/−</button>
+    <button class="btn fn" data-action="percent">%</button>
+    <button class="btn op" data-action="op" data-val="÷">÷</button>
+
+    <!-- Row 2 -->
+    <button class="btn num" data-action="digit" data-val="7">7</button>
+    <button class="btn num" data-action="digit" data-val="8">8</button>
+    <button class="btn num" data-action="digit" data-val="9">9</button>
+    <button class="btn op" data-action="op" data-val="×">×</button>
+
+    <!-- Row 3 -->
+    <button class="btn num" data-action="digit" data-val="4">4</button>
+    <button class="btn num" data-action="digit" data-val="5">5</button>
+    <button class="btn num" data-action="digit" data-val="6">6</button>
+    <button class="btn op" data-action="op" data-val="−">−</button>
+
+    <!-- Row 4 -->
+    <button class="btn num" data-action="digit" data-val="1">1</button>
+    <button class="btn num" data-action="digit" data-val="2">2</button>
+    <button class="btn num" data-action="digit" data-val="3">3</button>
+    <button class="btn op" data-action="op" data-val="+">+</button>
+
+    <!-- Row 5 -->
+    <button class="btn num zero" data-action="digit" data-val="0">0</button>
+    <button class="btn num" data-action="decimal">.</button>
+    <button class="btn eq" data-action="equals">=</button>
+  </div>
+
+  <div class="footer">CALC · PWA</div>
+</div>
+
+<script>
+const app = document.getElementById('app');
+const resultEl = document.getElementById('result');
+const expressionEl = document.getElementById('expression');
+const historyEl = document.getElementById('history');
+
+let state = {
+  current: '0',
+  prev: null,
+  op: null,
+  reset: false,
+  expr: '',
+  history: ''
+};
+
+function formatNum(n) {
+  const s = parseFloat(n);
+  if (isNaN(s)) return 'Error';
+  if (!isFinite(s)) return s > 0 ? '+∞' : '−∞';
+  const str = String(s);
+  if (str.includes('e')) return s.toExponential(4);
+  const [int, dec] = str.split('.');
+  const formattedInt = parseInt(int).toLocaleString('en-US');
+  return dec !== undefined ? formattedInt + '.' + dec : formattedInt;
+}
+
+function shrinkDisplay(text) {
+  const len = text.replace(/[,]/g, '').length;
+  if (len > 14) resultEl.style.fontSize = 'clamp(24px, 6vw, 30px)';
+  else if (len > 10) resultEl.style.fontSize = 'clamp(32px, 8vw, 38px)';
+  else if (len > 7) resultEl.style.fontSize = 'clamp(38px, 10vw, 46px)';
+  else resultEl.style.fontSize = '';
+}
+
+function updateDisplay() {
+  const formatted = formatNum(state.current);
+  resultEl.textContent = formatted;
+  expressionEl.textContent = state.expr;
+  historyEl.textContent = state.history;
+  shrinkDisplay(formatted);
+}
+
+function flashResult(color) {
+  resultEl.classList.add('flash');
+  setTimeout(() => resultEl.classList.remove('flash'), 280);
+}
+
+function shakeDisplay() {
+  const d = document.getElementById('display');
+  d.classList.add('shake');
+  setTimeout(() => d.classList.remove('shake'), 350);
+}
+
+function setActiveOp(op) {
+  document.querySelectorAll('.btn.op').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === op);
+  });
+}
+
+function clearActiveOp() {
+  document.querySelectorAll('.btn.op').forEach(b => b.classList.remove('active'));
+}
+
+function compute(a, b, op) {
+  a = parseFloat(a); b = parseFloat(b);
+  switch(op) {
+    case '+': return a + b;
+    case '−': return a - b;
+    case '×': return a * b;
+    case '÷': return b === 0 ? (a === 0 ? NaN : Infinity * Math.sign(a)) : a / b;
+  }
+}
+
+function handleDigit(val) {
+  app.classList.remove('eq-mode');
+  if (state.reset) {
+    state.current = val;
+    state.reset = false;
+  } else {
+    if (state.current === '0' && val !== '.') state.current = val;
+    else if (state.current.length < 15) state.current += val;
+  }
+  updateDisplay();
+}
+
+function handleDecimal() {
+  app.classList.remove('eq-mode');
+  if (state.reset) { state.current = '0.'; state.reset = false; }
+  else if (!state.current.includes('.')) state.current += '.';
+  updateDisplay();
+}
+
+function handleOp(op) {
+  app.classList.remove('eq-mode');
+  clearActiveOp();
+  setActiveOp(op);
+
+  if (state.op && !state.reset) {
+    const res = compute(state.prev, state.current, state.op);
+    state.prev = String(res);
+    state.current = String(res);
+    state.expr = formatNum(res) + ' ' + op;
+  } else {
+    state.prev = state.current;
+    state.expr = formatNum(state.current) + ' ' + op;
+  }
+  state.op = op;
+  state.reset = true;
+  updateDisplay();
+}
+
+function handleEquals() {
+  if (!state.op) return;
+  clearActiveOp();
+
+  const a = state.prev, b = state.current, op = state.op;
+  const res = compute(a, b, op);
+
+  state.history = formatNum(a) + ' ' + op + ' ' + formatNum(b) + ' =';
+  state.expr = '';
+  state.current = String(res);
+  state.prev = null;
+  state.op = null;
+  state.reset = true;
+
+  if (isNaN(res)) { shakeDisplay(); state.current = 'Error'; }
+  else { app.classList.add('eq-mode'); flashResult(); }
+  updateDisplay();
+}
+
+function handleClear() {
+  clearActiveOp();
+  app.classList.remove('eq-mode');
+  state = { current: '0', prev: null, op: null, reset: false, expr: '', history: '' };
+  updateDisplay();
+}
+
+function handleSign() {
+  if (state.current === '0' || state.current === 'Error') return;
+  state.current = String(-parseFloat(state.current));
+  updateDisplay();
+}
+
+function handlePercent() {
+  if (state.current === 'Error') return;
+  state.current = String(parseFloat(state.current) / 100);
+  updateDisplay();
+}
+
+// Event delegation
+document.querySelector('.keypad').addEventListener('click', e => {
+  const btn = e.target.closest('.btn');
+  if (!btn) return;
+  const { action, val } = btn.dataset;
+
+  switch(action) {
+    case 'digit':   handleDigit(val); break;
+    case 'decimal': handleDecimal(); break;
+    case 'op':      handleOp(val); break;
+    case 'equals':  handleEquals(); break;
+    case 'clear':   handleClear(); break;
+    case 'sign':    handleSign(); break;
+    case 'percent': handlePercent(); break;
+  }
+});
+
+// Keyboard support
+document.addEventListener('keydown', e => {
+  if (e.key >= '0' && e.key <= '9') handleDigit(e.key);
+  else if (e.key === '.') handleDecimal();
+  else if (e.key === '+') handleOp('+');
+  else if (e.key === '-') handleOp('−');
+  else if (e.key === '*') handleOp('×');
+  else if (e.key === '/') { e.preventDefault(); handleOp('÷'); }
+  else if (e.key === 'Enter' || e.key === '=') handleEquals();
+  else if (e.key === 'Escape') handleClear();
+  else if (e.key === '%') handlePercent();
+  else if (e.key === 'Backspace') {
+    if (state.current.length > 1 && !state.reset && state.current !== 'Error')
+      state.current = state.current.slice(0, -1);
+    else state.current = '0';
+    updateDisplay();
+  }
+});
+
+// Service Worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+updateDisplay();
+</script>
+</body>
+</html>
